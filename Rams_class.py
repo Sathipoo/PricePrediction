@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
+
 class BaseClass:
     def __init__(self,symbol,period='12mo') :
         self.symbol=symbol
@@ -14,8 +15,8 @@ class BaseClass:
     def get_history(self):
         stock_symbol=self.symbol
         stock_period=self.period
-        ram = yf.Ticker(stock_symbol).history(period=stock_period)[['Open', 'Close', 'High', 'Low', 'Volume']]
-        return(ram)
+        df = yf.Ticker(stock_symbol).history(period=stock_period)[['Open', 'Close', 'High', 'Low', 'Volume']]
+        return(df)
 
 # Strategies
 
@@ -189,3 +190,64 @@ class BaseClass:
         if(bool_val):
             fig.show()
         return(fig)
+    
+    def plot_bollinger(self,WINDOW):
+        df=self.df
+        df['sma_boll'] = df['Close'].rolling(WINDOW).mean()
+        df['std_boll'] = df['Close'].rolling(WINDOW).std(ddof = 0)
+        # Create subplots with 2 rows; top for candlestick price, and bottom for bar volume
+        fig = make_subplots(rows = 2, cols = 1, shared_xaxes = True, subplot_titles = ('Company', 'Volume'), vertical_spacing = 0.1, row_width = [0.2, 0.7])
+
+        # ----------------
+        # Candlestick Plot
+        fig.add_trace(go.Candlestick(x = df.index,
+                                    open = df['Open'],
+                                    high = df['High'],
+                                    low = df['Low'],
+                                    close = df['Close'], showlegend=False,
+                                    name = 'candlestick'),
+                    row = 1, col = 1)
+
+        # Moving Average
+        fig.add_trace(go.Scatter(x = df.index,
+                                y = df['sma_boll'],
+                                line_color = 'black',
+                                name = 'sma'),
+                    row = 1, col = 1)
+
+        # Upper Bound
+        fig.add_trace(go.Scatter(x = df.index,
+                                y = df['sma_boll'] + (df['std_boll'] * 2),
+                                line_color = 'gray',
+                                line = {'dash': 'dash'},
+                                name = 'upper band',
+                                opacity = 0.5),
+                    row = 1, col = 1)
+
+        # Lower Bound fill in between with parameter 'fill': 'tonexty'
+        fig.add_trace(go.Scatter(x = df.index,
+                                y = df['sma_boll'] - (df['std_boll'] * 2),
+                                line_color = 'gray',
+                                line = {'dash': 'dash'},
+                                fill = 'tonexty',
+                                name = 'lower band',
+                                opacity = 0.5),
+                    row = 1, col = 1)
+
+
+        # ----------------
+        # Volume Plot
+        fig.add_trace(go.Bar(x = df.index, y = df['Volume'], showlegend=False), 
+                    row = 2, col = 1)
+
+        # Remove range slider; (short time frame)
+        fig.update(layout_xaxis_rangeslider_visible=False)
+
+        # Stock data has gaps in dates, specifically in weekends and holidays
+        # create a list of dates that are NOT included from start to end
+        # date_gaps = [date for date in pd.date_range(start = '2020-12-21', end = '2021-05-14') if date not in df.index.values]
+
+        # # Update Xaxes 
+        # fig.update_xaxes(rangebreaks = [dict(values = date_gaps)])
+
+        fig.show()
